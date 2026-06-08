@@ -357,6 +357,11 @@ function createQueueItemUI(id, title, channel, outputDir) {
             <rect x="6" y="6" width="12" height="12"></rect>
           </svg>
         </button>
+        <button class="queue-action-btn folder-btn hidden" id="folder-${id}" title="打开文件位置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
         <button class="queue-action-btn delete-btn" id="delete-${id}" title="Delete Task">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"></polyline>
@@ -375,6 +380,10 @@ function createQueueItemUI(id, title, channel, outputDir) {
 
   document.getElementById(`stop-${id}`).addEventListener('click', () => {
     ipcRenderer.send(`kill-download-${id}`);
+  });
+
+  document.getElementById(`folder-${id}`).addEventListener('click', () => {
+    ipcRenderer.invoke('open-folder', outputDir);
   });
 
   document.getElementById(`delete-${id}`).addEventListener('click', async () => {
@@ -414,6 +423,8 @@ ipcRenderer.on('download-progress', (event, { id, status, progress, error }) => 
     statusEl.textContent = 'Completed';
     progressEl.style.width = '100%';
     progressEl.style.background = 'var(--success-color)';
+    document.getElementById(`stop-${id}`).style.display = 'none';
+    document.getElementById(`folder-${id}`).classList.remove('hidden');
     activeDownloadCount--;
     processDownloadQueue();
   } else if (status === 'failed') {
@@ -421,6 +432,14 @@ ipcRenderer.on('download-progress', (event, { id, status, progress, error }) => 
     statusEl.style.color = 'var(--danger-color)';
     statusEl.title = error || 'Unknown error';
     progressEl.style.background = 'var(--danger-color)';
+    document.getElementById(`stop-${id}`).style.display = 'none';
+    activeDownloadCount--;
+    processDownloadQueue();
+  } else if (status === 'cancelled') {
+    statusEl.textContent = 'Cancelled';
+    statusEl.style.color = 'var(--danger-color)';
+    progressEl.style.background = 'var(--danger-color)';
+    document.getElementById(`stop-${id}`).style.display = 'none';
     activeDownloadCount--;
     processDownloadQueue();
   }

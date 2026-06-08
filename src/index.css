@@ -553,6 +553,11 @@ body {
   background: rgba(239, 68, 68, 0.1);
 }
 
+.queue-action-btn.folder-btn:hover {
+  color: var(--text-accent);
+  background: rgba(59, 130, 246, 0.1);
+}
+
 .queue-action-btn svg {
   width: 14px;
   height: 14px;
