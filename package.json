@@ -1,0 +1,61 @@
+{
+  "name": "yddownload",
+  "version": "2.0.0",
+  "description": "A premium GUI video downloader powered by yt-dlp",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "node build-portable.js"
+  },
+  "build": {
+    "appId": "com.antigravity.yddownload",
+    "productName": "ydDownload",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "dir",
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ydDownload",
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "installerHeaderIcon": "resources/icon.ico"
+    },
+    "publish": null,
+    "extraResources": [
+      {
+        "from": "bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "files": [
+      "src/**/*",
+      "main.js",
+      "preload.js",
+      "package.json"
+    ]
+  },
+  "keywords": [
+    "downloader",
+    "yt-dlp",
+    "video",
+    "gui"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^30.0.9",
+    "electron-builder": "^24.13.3"
+  }
+}

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>yddownload</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <!-- Custom Title Bar -->
+  <div id="title-bar">
+    <div class="title-drag-region">
+      <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      <span class="title-text">yddownload</span>
+    </div>
+    <div class="window-controls">
+      <button class="control-btn" id="settings-btn" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+      <button class="control-btn" id="min-btn" title="Minimize">
+        <svg viewBox="0 0 10 10"><line x1="0" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+      <button class="control-btn" id="max-btn" title="Maximize">
+        <svg id="max-icon-rect" viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+        <svg id="max-icon-restore" viewBox="0 0 10 10" class="hidden">
+          <path d="M2.5,4.5 L2.5,1.5 L8.5,1.5 L8.5,7.5 L5.5,7.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="1.5" y="3.5" width="4" height="4" fill="none" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+      </button>
+      <button class="control-btn" id="close-btn" title="Close">
+        <svg viewBox="0 0 10 10"><path d="M1,1 L9,9 M9,1 L1,9" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- App Wrapper -->
+  <div id="app-container">
+
+    <!-- MAIN SINGLE COLUMN VIEW -->
+    <div id="main-view" class="view">
+      
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <button id="tab-download-btn" class="tab-btn active">视频下载</button>
+        <button id="tab-subs-btn" class="tab-btn">频道订阅</button>
+      </div>
+
+      <!-- Tab Content: Video Download -->
+      <div id="download-tab-content" class="tab-content">
+        <!-- Input Area -->
+        <div class="input-section">
+          <div class="input-wrapper">
+            <input type="text" id="video-url" placeholder="Paste URL and hit Enter..." autocomplete="off">
+            <button id="sniff-btn" class="icon-btn" title="网页嗅探 (Web Sniffer)" style="color: var(--text-muted);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <path d="M11 7v4M11 15h.01"></path>
+              </svg>
+            </button>
+            <button id="analyze-btn" class="icon-btn" title="Analyze">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+          </div>
+          <div id="url-error" class="input-error-msg hidden">Please enter a valid video URL</div>
+          
+          <!-- Loading state for analysis -->
+          <div id="analysis-loading" class="analysis-loading hidden">
+            <div class="spinner"></div>
+            <span class="muted-text">Analyzing URL...</span>
+          </div>
+
+          <!-- Analysis Error Alert -->
+          <div id="analysis-error" class="error-alert hidden">
+            <span class="error-title">Analysis Failed</span>
+            <span class="error-body" id="analysis-err-msg">An error occurred.</span>
+          </div>
+        </div>
+
+        <!-- Inline Video Result -->
+        <div id="video-result" class="inline-result hidden">
+          <div class="result-info">
+            <span class="site-badge" id="video-site">YT</span>
+            <span class="result-title" id="video-title">Video title here...</span>
+          </div>
+          <div class="result-actions">
+            <select id="video-stream" class="minimal-select"></select>
+            <button id="download-btn" class="btn btn-primary">Download</button>
+          </div>
+        </div>
+
+        <!-- Inline Playlist Result -->
+        <div id="playlist-result" class="inline-result playlist hidden">
+          <div class="result-info">
+            <span class="site-badge" id="playlist-site">YT</span>
+            <span class="result-title" id="playlist-title">Playlist title here...</span>
+            <span class="muted-text" id="playlist-count">(0)</span>
+          </div>
+          <div class="result-actions">
+            <select id="playlist-res" class="minimal-select">
+              <option value="best">Quality: Best</option>
+              <option value="2160">Quality: 4K</option>
+              <option value="1440">Quality: 2K</option>
+              <option value="1080">Quality: 1080p</option>
+              <option value="720">Quality: 720p</option>
+              <option value="480">Quality: 480p</option>
+            </select>
+            <button id="download-playlist-btn" class="btn btn-primary">Download All</button>
+          </div>
+          <!-- Collapsible playlist selection -->
+          <div class="playlist-entries-wrapper">
+            <div class="playlist-actions-row">
+              <button id="select-all-btn" class="btn-text">Select All</button>
+              <button id="deselect-all-btn" class="btn-text">Deselect All</button>
+            </div>
+            <div id="playlist-entries" class="playlist-entries-container"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Channel Subscriptions -->
+      <div id="subs-tab-content" class="tab-content hidden">
+        <div class="subs-layout">
+          <!-- Left Sidebar: Subscriptions list -->
+          <div class="subs-sidebar">
+            <div class="subs-add-wrapper">
+              <input type="text" id="sub-url-input" placeholder="粘贴频道或空间链接..." autocomplete="off">
+              <button id="sub-add-btn" class="icon-btn" title="订阅">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </button>
+            </div>
+            <div id="sub-add-error" class="input-error-msg hidden">请输入有效的链接</div>
+            <div id="sub-list-loading" class="analysis-loading hidden">
+              <div class="spinner"></div>
+              <span class="muted-text">正在验证订阅...</span>
+            </div>
+            <div class="sidebar-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; flex-shrink: 0;">
+              <span class="muted-text" style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">我的订阅</span>
+              <button id="sub-refresh-all-btn" class="icon-btn" title="刷新全部订阅" style="padding: 2px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                  <path d="M23 4v6h-6"></path>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+              </button>
+            </div>
+            <div id="subs-list" class="subs-list-container">
+              <!-- Subscribed channels -->
+            </div>
+          </div>
+
+          <!-- Right Content: Channel Detail -->
+          <div class="subs-detail">
+            <!-- Empty state -->
+            <div id="sub-detail-empty" class="empty-state">
+              <span class="muted-text">选择左侧订阅频道，或添加新的频道链接</span>
+            </div>
+
+            <!-- Detail content -->
+            <div id="sub-detail-content" class="sub-detail-content hidden">
+              <div class="sub-detail-header">
+                <div class="sub-detail-title-row">
+                  <span class="site-badge" id="sub-detail-site">YT</span>
+                  <h3 id="sub-detail-title">频道名称</h3>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+                  <span id="sub-detail-url" class="muted-text text-link" style="font-size: 11px; cursor: pointer; text-decoration: underline;">https://...</span>
+                  <span id="sub-last-checked" class="muted-text" style="font-size: 11px;">未更新</span>
+                </div>
+              </div>
+
+              <div class="sub-detail-actions">
+                <div class="sub-actions-left">
+                  <select id="sub-fetch-count" class="minimal-select">
+                    <option value="5">最新 5 个</option>
+                    <option value="10" selected>最新 10 个</option>
+                    <option value="20">最新 20 个</option>
+                    <option value="50">最新 50 个</option>
+                  </select>
+                  <button id="sub-fetch-btn" class="btn btn-secondary">获取最新</button>
+                </div>
+                <div class="sub-actions-right">
+                  <select id="sub-download-res" class="minimal-select">
+                    <option value="best">画质: 最佳</option>
+                    <option value="2160">画质: 4K</option>
+                    <option value="1440">画质: 2K</option>
+                    <option value="1080">画质: 1080p</option>
+                    <option value="720">画质: 720p</option>
+                    <option value="480">画质: 480p</option>
+                  </select>
+                  <button id="sub-download-btn" class="btn btn-primary" disabled>下载所选 (0)</button>
+                </div>
+              </div>
+
+              <div class="sub-videos-wrapper">
+                <div class="playlist-actions-row">
+                  <button id="sub-select-all-btn" class="btn-text">全选</button>
+                  <button id="sub-deselect-all-btn" class="btn-text">全不选</button>
+                </div>
+
+                <div id="sub-videos-loading" class="analysis-loading hidden" style="margin-top: 10px;">
+                  <div class="spinner"></div>
+                  <span class="muted-text">正在获取最新视频...</span>
+                </div>
+
+                <div id="sub-videos-error" class="error-alert hidden" style="margin-top: 10px;">
+                  <span class="error-title">获取失败</span>
+                  <span class="error-body" id="sub-videos-err-msg">出错了。</span>
+                </div>
+
+                <div id="sub-videos-list" class="sub-videos-list-container">
+                  <!-- Video items -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Queue Section -->
+      <div class="queue-section">
+        <div class="section-header">
+          <span class="section-title">Downloads</span>
+        </div>
+        
+        <div id="empty-queue" class="empty-state">
+          <span class="muted-text">No active tasks</span>
+        </div>
+
+        <div id="queue-list" class="queue-list">
+          <!-- Download items grouped by channel -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Settings</h3>
+          <button id="close-settings-btn" class="icon-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          
+          <div class="setting-group">
+            <label>Download Location</label>
+            <div class="path-selector">
+              <span class="path-display" id="path-display">Loading...</span>
+              <button id="change-path-btn" class="btn-secondary">Change</button>
+            </div>
+          </div>
+
+          <div class="setting-group checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="auto-subfolder" checked>
+              <span class="checkbox-custom"></span>
+              Create subfolders for channels / playlists
+            </label>
+          </div>
+
+          <div class="setting-group">
+            <label for="default-res">Default Resolution</label>
+            <select id="default-res" class="minimal-select full-width">
+              <option value="best">Best Quality (No limit)</option>
+              <option value="2160">4K (2160p)</option>
+              <option value="1440">2K (1440p)</option>
+              <option value="1080">1080p</option>
+              <option value="720">720p</option>
+              <option value="480">480p</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <label for="bili-cookies">Bilibili 专属 Cookies (获取高级画质)</label>
+            <textarea id="bili-cookies" class="text-input full-width" rows="3" placeholder="SESSDATA=xxx; bili_jct=xxx; ..."></textarea>
+            <span class="muted-text" style="font-size: 11px; margin-top: 4px; display: block;">直接粘贴 Bilibili 网页的 Cookie 字符串即可，无需保存 txt 文件。</span>
+          </div>
+
+          <div class="setting-group">
+            <label for="custom-ua">Custom User-Agent (Optional)</label>
+            <input type="text" id="custom-ua" class="text-input full-width" placeholder="Mozilla/5.0 ...">
+          </div>
+
+        </div>
+        <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
+          <button id="save-settings-btn" class="btn btn-primary">保存设置 (Save)</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
