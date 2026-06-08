@@ -57,11 +57,26 @@ const downloadQueue = [];
 let activeDownloadCount = 0;
 const MAX_CONCURRENT_DOWNLOADS = 3;
 
+let downloadHistory = JSON.parse(localStorage.getItem('yddownload_history') || '[]');
+const activeTasksMap = {};
+
+function saveHistory() {
+  if (downloadHistory.length > 50) downloadHistory = downloadHistory.slice(-50);
+  localStorage.setItem('yddownload_history', JSON.stringify(downloadHistory));
+}
+
 // ── Initialization ──
 ipcRenderer.invoke('get-default-download-dir').then(dir => {
   currentDownloadDir = dir;
   pathDisplay.textContent = dir;
 });
+
+// Load history UI
+setTimeout(() => {
+  downloadHistory.forEach(task => {
+    createQueueItemUI(task.id, task.title, task.channel, task.outputDir, true, task.status);
+  });
+}, 100);
 
 // Load settings
 defaultRes.value = localStorage.getItem('defaultResolution') || 'best';
@@ -291,6 +306,7 @@ async function processDownloadQueue() {
     outputDir = await ipcRenderer.invoke('path-join', currentDownloadDir, siteFolder, channelFolder);
   }
   
+  activeTasksMap[id] = { title, channel, outputDir };
   createQueueItemUI(id, title, channel, outputDir);
   
   ipcRenderer.send('download-video', {
@@ -341,7 +357,7 @@ function getOrCreateChannelGroup(channelName) {
   return group.querySelector('.channel-tasks');
 }
 
-function createQueueItemUI(id, title, channel, outputDir) {
+function createQueueItemUI(id, title, channel, outputDir, isHistory = false, historyStatus = 'Completed') {
   const tasksContainer = getOrCreateChannelGroup(channel || 'Uncategorized');
   
   const el = document.createElement('div');
@@ -397,6 +413,10 @@ function createQueueItemUI(id, title, channel, outputDir) {
       ipcRenderer.send(`kill-download-${id}`);
     }
     
+    // Remove from history if present
+    downloadHistory = downloadHistory.filter(h => h.id !== id);
+    saveHistory();
+    
     el.remove();
     // Check if channel group is empty
     if (tasksContainer.children.length === 0) {
@@ -404,6 +424,23 @@ function createQueueItemUI(id, title, channel, outputDir) {
     }
     updateQueueVisibility();
   });
+
+  if (isHistory) {
+    const statusEl = document.getElementById(`status-${id}`);
+    const progressEl = document.getElementById(`progress-${id}`);
+    document.getElementById(`stop-${id}`).style.display = 'none';
+    
+    statusEl.textContent = historyStatus;
+    progressEl.style.width = '100%';
+    
+    if (historyStatus === 'Completed') {
+      progressEl.style.background = 'var(--success-color)';
+      document.getElementById(`folder-${id}`).classList.remove('hidden');
+    } else {
+      statusEl.style.color = 'var(--danger-color)';
+      progressEl.style.background = 'var(--danger-color)';
+    }
+  }
 }
 
 // ── IPC Listeners for Progress ──
@@ -411,6 +448,23 @@ ipcRenderer.on('download-progress', (event, { id, status, progress, error }) => 
   const statusEl = document.getElementById(`status-${id}`);
   const progressEl = document.getElementById(`progress-${id}`);
   if (!statusEl || !progressEl) return;
+
+  const taskData = activeTasksMap[id];
+  function finalizeTask(finalStatus) {
+    if (taskData) {
+      downloadHistory.push({
+        id,
+        title: taskData.title,
+        channel: taskData.channel,
+        outputDir: taskData.outputDir,
+        status: finalStatus
+      });
+      saveHistory();
+      delete activeTasksMap[id];
+    }
+    activeDownloadCount--;
+    processDownloadQueue();
+  }
 
   if (status === 'downloading') {
     statusEl.textContent = `${progress}%`;
@@ -425,23 +479,20 @@ ipcRenderer.on('download-progress', (event, { id, status, progress, error }) => 
     progressEl.style.background = 'var(--success-color)';
     document.getElementById(`stop-${id}`).style.display = 'none';
     document.getElementById(`folder-${id}`).classList.remove('hidden');
-    activeDownloadCount--;
-    processDownloadQueue();
+    finalizeTask('Completed');
   } else if (status === 'failed') {
     statusEl.textContent = 'Failed';
     statusEl.style.color = 'var(--danger-color)';
     statusEl.title = error || 'Unknown error';
     progressEl.style.background = 'var(--danger-color)';
     document.getElementById(`stop-${id}`).style.display = 'none';
-    activeDownloadCount--;
-    processDownloadQueue();
+    finalizeTask('Failed');
   } else if (status === 'cancelled') {
     statusEl.textContent = 'Cancelled';
     statusEl.style.color = 'var(--danger-color)';
     progressEl.style.background = 'var(--danger-color)';
     document.getElementById(`stop-${id}`).style.display = 'none';
-    activeDownloadCount--;
-    processDownloadQueue();
+    finalizeTask('Cancelled');
   }
 });
 
