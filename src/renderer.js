@@ -60,6 +60,13 @@ const MAX_CONCURRENT_DOWNLOADS = 3;
 let downloadHistory = JSON.parse(localStorage.getItem('yddownload_history') || '[]');
 const activeTasksMap = {};
 
+// Track all successfully downloaded video URLs (persistent)
+let downloadedUrls = new Set(JSON.parse(localStorage.getItem('yddownload_downloaded_urls') || '[]'));
+
+function saveDownloadedUrls() {
+  localStorage.setItem('yddownload_downloaded_urls', JSON.stringify([...downloadedUrls]));
+}
+
 function saveHistory() {
   if (downloadHistory.length > 50) downloadHistory = downloadHistory.slice(-50);
   localStorage.setItem('yddownload_history', JSON.stringify(downloadHistory));
@@ -306,7 +313,7 @@ async function processDownloadQueue() {
     outputDir = await ipcRenderer.invoke('path-join', currentDownloadDir, siteFolder, channelFolder);
   }
   
-  activeTasksMap[id] = { title, channel, outputDir };
+  activeTasksMap[id] = { title, channel, outputDir, url };
   createQueueItemUI(id, title, channel, outputDir);
   
   ipcRenderer.send('download-video', {
@@ -408,6 +415,17 @@ function createQueueItemUI(id, title, channel, outputDir, isHistory = false, his
     const result = await ipcRenderer.invoke('confirm-delete', title, outputDir);
     if (result.action === 'cancel') return;
     
+    // If user chose to delete local files, also remove from downloaded URL tracking
+    // so this video will reappear in subscription update checks
+    if (result.deleteFiles === true) {
+      // Find the URL for this task from history
+      const histItem = downloadHistory.find(h => h.id === id);
+      if (histItem && histItem.url) {
+        downloadedUrls.delete(histItem.url);
+        saveDownloadedUrls();
+      }
+    }
+    
     // Stop if still running
     if (!statusText.includes('Completed') && !statusText.includes('Failed') && !statusText.includes('Cancelled')) {
       ipcRenderer.send(`kill-download-${id}`);
@@ -457,9 +475,15 @@ ipcRenderer.on('download-progress', (event, { id, status, progress, error }) => 
         title: taskData.title,
         channel: taskData.channel,
         outputDir: taskData.outputDir,
+        url: taskData.url,
         status: finalStatus
       });
       saveHistory();
+      // Track completed downloads by URL
+      if (finalStatus === 'Completed' && taskData.url) {
+        downloadedUrls.add(taskData.url);
+        saveDownloadedUrls();
+      }
       delete activeTasksMap[id];
     }
     activeDownloadCount--;
@@ -901,3 +925,175 @@ subRefreshAllBtn.addEventListener('click', async () => {
     alert(`刷新完成，但有 ${errors} 个频道刷新失败。请检查网络。`);
   }
 });
+
+// ── Subscription Auto-Check on Startup ──
+const subUpdateModal = document.getElementById('sub-update-modal');
+const subUpdateLoading = document.getElementById('sub-update-loading');
+const subUpdateResult = document.getElementById('sub-update-result');
+const subUpdateSummary = document.getElementById('sub-update-summary');
+const subUpdateList = document.getElementById('sub-update-list');
+const subUpdateRes = document.getElementById('sub-update-res');
+const subUpdateDownloadBtn = document.getElementById('sub-update-download-btn');
+const subUpdateSkipBtn = document.getElementById('sub-update-skip-btn');
+const subUpdateCloseBtn = document.getElementById('sub-update-close-btn');
+const subUpdateSelectAll = document.getElementById('sub-update-select-all');
+const subUpdateDeselectAll = document.getElementById('sub-update-deselect-all');
+
+let subUpdateNewVideos = []; // { url, title, channel, site, duration }
+
+function updateSubUpdateCount() {
+  const checked = document.querySelectorAll('.sub-update-checkbox:checked').length;
+  subUpdateDownloadBtn.textContent = `下载所选 (${checked})`;
+  subUpdateDownloadBtn.disabled = checked === 0;
+}
+
+subUpdateSelectAll.addEventListener('click', () => {
+  document.querySelectorAll('.sub-update-checkbox').forEach(cb => cb.checked = true);
+  updateSubUpdateCount();
+});
+
+subUpdateDeselectAll.addEventListener('click', () => {
+  document.querySelectorAll('.sub-update-checkbox').forEach(cb => cb.checked = false);
+  updateSubUpdateCount();
+});
+
+subUpdateSkipBtn.addEventListener('click', () => {
+  subUpdateModal.classList.add('hidden');
+});
+
+subUpdateCloseBtn.addEventListener('click', () => {
+  subUpdateModal.classList.add('hidden');
+});
+
+subUpdateDownloadBtn.addEventListener('click', () => {
+  const resLimit = subUpdateRes.value;
+  const checkedBoxes = document.querySelectorAll('.sub-update-checkbox:checked');
+
+  checkedBoxes.forEach(cb => {
+    const idx = parseInt(cb.dataset.idx, 10);
+    const video = subUpdateNewVideos[idx];
+    if (video && video.url) {
+      enqueueDownload(
+        video.url,
+        video.title,
+        video.channel,
+        'best',
+        resLimit,
+        video.site
+      );
+    }
+  });
+
+  subUpdateModal.classList.add('hidden');
+});
+
+async function checkSubscriptionUpdates() {
+  if (subscriptions.length === 0) return;
+
+  // Show modal with loading state
+  subUpdateModal.classList.remove('hidden');
+  subUpdateLoading.classList.remove('hidden');
+  subUpdateResult.classList.add('hidden');
+  subUpdateNewVideos = [];
+
+  let totalNewCount = 0;
+  let checkedChannels = 0;
+  let errors = 0;
+
+  for (const sub of subscriptions) {
+    try {
+      // Auto-fix existing subscriptions (same logic as fetchLatestVideos)
+      let fetchUrl = sub.url;
+      if (fetchUrl.match(/^https?:\/\/(www\.)?youtube\.com\/(@[^/]+|channel\/[^/]+|c\/[^/]+|user\/[^/]+)\/?$/)) {
+        fetchUrl = fetchUrl.replace(/\/$/, '') + '/videos';
+      }
+
+      const response = await ipcRenderer.invoke('get-video-info', {
+        url: fetchUrl,
+        biliCookies: localStorage.getItem('biliCookies') || '',
+        customUa: localStorage.getItem('customUa') || '',
+        playlistEnd: 10
+      });
+
+      if (response.metadata && response.metadata.entries) {
+        // Filter out live and shorts (same logic)
+        const validVideos = response.metadata.entries.filter(v => {
+          if (v.is_live === true) return false;
+          if (v.duration != null && v.duration <= 60) return false;
+          return true;
+        });
+
+        // Find truly new ones (not in downloadedUrls)
+        for (const video of validVideos) {
+          if (video.url && !downloadedUrls.has(video.url)) {
+            subUpdateNewVideos.push({
+              url: video.url,
+              title: video.title,
+              channel: sub.title,
+              site: sub.site,
+              duration: video.duration
+            });
+            totalNewCount++;
+          }
+        }
+      }
+      checkedChannels++;
+    } catch (err) {
+      console.error(`Error checking sub ${sub.title}:`, err);
+      errors++;
+    }
+  }
+
+  // Update sub's lastChecked
+  subscriptions.forEach(s => s.lastChecked = Date.now());
+  localStorage.setItem('yddownload_subscriptions', JSON.stringify(subscriptions));
+
+  subUpdateLoading.classList.add('hidden');
+
+  if (totalNewCount === 0) {
+    // No new videos, just close the modal silently
+    subUpdateModal.classList.add('hidden');
+    return;
+  }
+
+  // Populate the modal with new videos
+  subUpdateSummary.textContent = `检查了 ${checkedChannels} 个频道，发现 ${totalNewCount} 个新视频${errors > 0 ? `（${errors} 个频道检查失败）` : ''}`;
+  subUpdateRes.value = localStorage.getItem('defaultResolution') || 'best';
+
+  subUpdateList.innerHTML = '';
+  subUpdateNewVideos.forEach((video, idx) => {
+    const durationStr = formatDuration(video.duration);
+    const el = document.createElement('div');
+    el.className = 'sub-update-item';
+    el.innerHTML = `
+      <input type="checkbox" class="sub-update-checkbox" data-idx="${idx}" checked>
+      <div class="sub-update-item-info">
+        <span class="sub-update-item-title" title="${video.title}">${video.title}</span>
+        <span class="sub-update-item-channel">${video.channel} · ${video.site}</span>
+      </div>
+      <span class="sub-update-item-duration">${durationStr}</span>
+    `;
+
+    el.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'INPUT') {
+        const cb = el.querySelector('.sub-update-checkbox');
+        cb.checked = !cb.checked;
+        updateSubUpdateCount();
+      }
+    });
+
+    el.querySelector('.sub-update-checkbox').addEventListener('change', () => {
+      updateSubUpdateCount();
+    });
+
+    subUpdateList.appendChild(el);
+  });
+
+  updateSubUpdateCount();
+  subUpdateResult.classList.remove('hidden');
+}
+
+// Trigger auto-check 2 seconds after startup
+setTimeout(() => {
+  checkSubscriptionUpdates();
+}, 2000);

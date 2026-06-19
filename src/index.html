@@ -309,6 +309,51 @@
       </div>
     </div>
 
+    <!-- Subscription Update Modal -->
+    <div id="sub-update-modal" class="modal-overlay hidden">
+      <div class="modal-content sub-update-modal-content">
+        <div class="modal-header">
+          <h3>📢 订阅更新</h3>
+          <button id="sub-update-close-btn" class="icon-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="sub-update-loading" class="analysis-loading">
+            <div class="spinner"></div>
+            <span class="muted-text">正在检查订阅更新...</span>
+          </div>
+          <div id="sub-update-result" class="hidden">
+            <p id="sub-update-summary" class="muted-text" style="font-size: 12px; margin-bottom: 12px;"></p>
+            <div class="sub-update-controls">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button id="sub-update-select-all" class="btn-text">全选</button>
+                <button id="sub-update-deselect-all" class="btn-text">全不选</button>
+              </div>
+              <select id="sub-update-res" class="minimal-select">
+                <option value="best">画质: 最佳</option>
+                <option value="2160">画质: 4K</option>
+                <option value="1440">画质: 2K</option>
+                <option value="1080">画质: 1080p</option>
+                <option value="720">画质: 720p</option>
+                <option value="480">画质: 480p</option>
+              </select>
+            </div>
+            <div id="sub-update-list" class="sub-update-video-list">
+              <!-- New video items -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
+          <button id="sub-update-skip-btn" class="btn btn-secondary">跳过 (Skip)</button>
+          <button id="sub-update-download-btn" class="btn btn-primary" disabled>下载所选 (0)</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="renderer.js"></script>

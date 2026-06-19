@@ -593,7 +593,7 @@ ipcMain.handle('confirm-delete', async (event, title, outputDir) => {
     title: '确认删除',
     message: `您确定要删除任务 "${title}" 吗？`,
     checkboxLabel: '同时删除本地已下载的文件 (Delete local files)',
-    checkboxChecked: false
+    checkboxChecked: true
   });
   
   if (response === 1) return { action: 'cancel' };
@@ -619,5 +619,5 @@ ipcMain.handle('confirm-delete', async (event, title, outputDir) => {
     }
   }
   
-  return { action: 'delete' };
+  return { action: 'delete', deleteFiles: checkboxChecked };
 });
