@@ -63,8 +63,21 @@ const activeTasksMap = {};
 // Track all successfully downloaded video URLs (persistent)
 let downloadedUrls = new Set(JSON.parse(localStorage.getItem('yddownload_downloaded_urls') || '[]'));
 
+// Track all video URLs that have been shown to the user in the update modal (persistent)
+// This prevents re-checking videos the user intentionally skipped
+let seenVideoUrls = new Set(JSON.parse(localStorage.getItem('yddownload_seen_urls') || '[]'));
+
 function saveDownloadedUrls() {
   localStorage.setItem('yddownload_downloaded_urls', JSON.stringify([...downloadedUrls]));
+}
+
+function saveSeenUrls() {
+  // Cap at 500 to prevent unbounded growth
+  if (seenVideoUrls.size > 500) {
+    const arr = [...seenVideoUrls];
+    seenVideoUrls = new Set(arr.slice(arr.length - 500));
+  }
+  localStorage.setItem('yddownload_seen_urls', JSON.stringify([...seenVideoUrls]));
 }
 
 function saveHistory() {
@@ -997,6 +1010,7 @@ async function checkSubscriptionUpdates() {
   subUpdateNewVideos = [];
 
   let totalNewCount = 0;
+  let totalSeenCount = 0;
   let checkedChannels = 0;
   let errors = 0;
 
@@ -1023,17 +1037,23 @@ async function checkSubscriptionUpdates() {
           return true;
         });
 
-        // Find truly new ones (not in downloadedUrls)
+        // Find videos not yet downloaded
         for (const video of validVideos) {
           if (video.url && !downloadedUrls.has(video.url)) {
+            const isNew = !seenVideoUrls.has(video.url);
             subUpdateNewVideos.push({
               url: video.url,
               title: video.title,
               channel: sub.title,
               site: sub.site,
-              duration: video.duration
+              duration: video.duration,
+              isNew: isNew
             });
-            totalNewCount++;
+            if (isNew) {
+              totalNewCount++;
+            } else {
+              totalSeenCount++;
+            }
           }
         }
       }
@@ -1050,25 +1070,38 @@ async function checkSubscriptionUpdates() {
 
   subUpdateLoading.classList.add('hidden');
 
-  if (totalNewCount === 0) {
-    // No new videos, just close the modal silently
+  if (subUpdateNewVideos.length === 0) {
+    // No videos at all, just close the modal silently
     subUpdateModal.classList.add('hidden');
     return;
   }
 
-  // Populate the modal with new videos
-  subUpdateSummary.textContent = `检查了 ${checkedChannels} 个频道，发现 ${totalNewCount} 个新视频${errors > 0 ? `（${errors} 个频道检查失败）` : ''}`;
+  // Mark all displayed videos as "seen" for next startup
+  subUpdateNewVideos.forEach(v => seenVideoUrls.add(v.url));
+  saveSeenUrls();
+
+  // Build summary text
+  let summaryParts = [`检查了 ${checkedChannels} 个频道`];
+  if (totalNewCount > 0) summaryParts.push(`${totalNewCount} 个新视频`);
+  if (totalSeenCount > 0) summaryParts.push(`${totalSeenCount} 个之前跳过的视频`);
+  if (errors > 0) summaryParts.push(`${errors} 个频道检查失败`);
+  subUpdateSummary.textContent = summaryParts.join('，');
   subUpdateRes.value = localStorage.getItem('defaultResolution') || 'best';
+
+  // Sort: new videos first, then previously seen
+  subUpdateNewVideos.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
 
   subUpdateList.innerHTML = '';
   subUpdateNewVideos.forEach((video, idx) => {
     const durationStr = formatDuration(video.duration);
+    const isChecked = video.isNew ? 'checked' : '';
     const el = document.createElement('div');
     el.className = 'sub-update-item';
+    if (!video.isNew) el.style.opacity = '0.6';
     el.innerHTML = `
-      <input type="checkbox" class="sub-update-checkbox" data-idx="${idx}" checked>
+      <input type="checkbox" class="sub-update-checkbox" data-idx="${idx}" ${isChecked}>
       <div class="sub-update-item-info">
-        <span class="sub-update-item-title" title="${video.title}">${video.title}</span>
+        <span class="sub-update-item-title" title="${video.title}">${video.isNew ? '🆕 ' : ''}${video.title}</span>
         <span class="sub-update-item-channel">${video.channel} · ${video.site}</span>
       </div>
       <span class="sub-update-item-duration">${durationStr}</span>
