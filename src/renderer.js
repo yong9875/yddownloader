@@ -326,7 +326,7 @@ async function processDownloadQueue() {
     outputDir = await ipcRenderer.invoke('path-join', currentDownloadDir, siteFolder, channelFolder);
   }
   
-  activeTasksMap[id] = { title, channel, outputDir, url };
+  activeTasksMap[id] = { title, channel, outputDir, url, format, resolutionLimit, site };
   createQueueItemUI(id, title, channel, outputDir);
   
   ipcRenderer.send('download-video', {
@@ -398,6 +398,12 @@ function createQueueItemUI(id, title, channel, outputDir, isHistory = false, his
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
           </svg>
         </button>
+        <button class="queue-action-btn retry-btn hidden" id="retry-${id}" title="Retry Task">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"></polyline>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          </svg>
+        </button>
         <button class="queue-action-btn delete-btn" id="delete-${id}" title="Delete Task">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"></polyline>
@@ -456,6 +462,30 @@ function createQueueItemUI(id, title, channel, outputDir, isHistory = false, his
     updateQueueVisibility();
   });
 
+  document.getElementById(`retry-${id}`).addEventListener('click', () => {
+    const histItem = downloadHistory.find(h => h.id === id);
+    if (!histItem) return;
+    
+    // Re-enqueue the task
+    enqueueDownload(
+      histItem.url,
+      histItem.title,
+      histItem.channel,
+      histItem.format || 'best',
+      histItem.resolutionLimit || 'best',
+      histItem.site
+    );
+    
+    // Remove the old task from DOM and history
+    downloadHistory = downloadHistory.filter(h => h.id !== id);
+    saveHistory();
+    el.remove();
+    if (tasksContainer.children.length === 0) {
+      tasksContainer.parentElement.remove();
+    }
+    updateQueueVisibility();
+  });
+
   if (isHistory) {
     const statusEl = document.getElementById(`status-${id}`);
     const progressEl = document.getElementById(`progress-${id}`);
@@ -470,6 +500,7 @@ function createQueueItemUI(id, title, channel, outputDir, isHistory = false, his
     } else {
       statusEl.style.color = 'var(--danger-color)';
       progressEl.style.background = 'var(--danger-color)';
+      document.getElementById(`retry-${id}`).classList.remove('hidden');
     }
   }
 }
@@ -489,6 +520,9 @@ ipcRenderer.on('download-progress', (event, { id, status, progress, error }) => 
         channel: taskData.channel,
         outputDir: taskData.outputDir,
         url: taskData.url,
+        format: taskData.format,
+        resolutionLimit: taskData.resolutionLimit,
+        site: taskData.site,
         status: finalStatus
       });
       saveHistory();
@@ -523,6 +557,7 @@ ipcRenderer.on('download-progress', (event, { id, status, progress, error }) => 
     statusEl.title = error || 'Unknown error';
     progressEl.style.background = 'var(--danger-color)';
     document.getElementById(`stop-${id}`).style.display = 'none';
+    document.getElementById(`retry-${id}`).classList.remove('hidden');
     finalizeTask('Failed');
   } else if (status === 'cancelled') {
     statusEl.textContent = 'Cancelled';
@@ -1130,3 +1165,45 @@ async function checkSubscriptionUpdates() {
 setTimeout(() => {
   checkSubscriptionUpdates();
 }, 2000);
+
+// ── Batch Delete Logic ──
+const batchDeleteBtn = document.getElementById('batch-delete-btn');
+if (batchDeleteBtn) {
+  batchDeleteBtn.addEventListener('click', async () => {
+    const records = downloadHistory.filter(h => h.status === 'Completed' || h.status === 'Failed' || h.status === 'Cancelled');
+    if (records.length === 0) return;
+
+    const result = await ipcRenderer.invoke('confirm-batch-delete', records.length);
+    if (result.action === 'cancel') return;
+
+    // Delete local files if checked
+    if (result.deleteFiles) {
+      const tasksToDelete = records.map(r => ({ title: r.title, outputDir: r.outputDir }));
+      await ipcRenderer.invoke('batch-delete-files', tasksToDelete);
+      
+      // Remove from downloadedUrls so they appear in sub updates again
+      records.forEach(r => {
+        if (r.url) downloadedUrls.delete(r.url);
+      });
+      saveDownloadedUrls();
+    }
+
+    // Remove from UI
+    records.forEach(r => {
+      const el = document.getElementById(`task-${r.id}`);
+      if (el) {
+        const container = el.parentElement;
+        el.remove();
+        if (container.children.length === 0) {
+          container.parentElement.remove();
+        }
+      }
+    });
+
+    // Clear history (keep active ones)
+    downloadHistory = downloadHistory.filter(h => !records.some(r => r.id === h.id));
+    saveHistory();
+    updateQueueVisibility();
+  });
+}
+

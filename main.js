@@ -621,3 +621,46 @@ ipcMain.handle('confirm-delete', async (event, title, outputDir) => {
   
   return { action: 'delete', deleteFiles: checkboxChecked };
 });
+
+ipcMain.handle('confirm-batch-delete', async (event, count) => {
+  const { response, checkboxChecked } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['确定清空 (Clear All)', '取消 (Cancel)'],
+    defaultId: 1,
+    cancelId: 1,
+    title: '确认清空',
+    message: `确定要清空 ${count} 个已完成或失败的任务记录吗？\n(这不会停止正在下载的任务)`,
+    checkboxLabel: '同时删除本地文件 (Delete local files)',
+    checkboxChecked: false
+  });
+  
+  if (response === 1) return { action: 'cancel' };
+  return { action: 'delete', deleteFiles: checkboxChecked };
+});
+
+ipcMain.handle('batch-delete-files', async (event, tasks) => {
+  // tasks is an array of { title, outputDir }
+  let deletedCount = 0;
+  for (const task of tasks) {
+    try {
+      if (fs.existsSync(task.outputDir)) {
+        const files = fs.readdirSync(task.outputDir);
+        const sanitizedTitle = task.title.replace(/[<>:"/\\|?*\x00-\x1F]/g, '');
+        const prefix = sanitizedTitle.substring(0, 10).trim();
+        if (prefix.length > 0) {
+          for (const file of files) {
+            if (file.startsWith(prefix)) {
+              const fullPath = path.join(task.outputDir, file);
+              fs.unlinkSync(fullPath);
+              deletedCount++;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`Error deleting files for task ${task.title}:`, err);
+    }
+  }
+  return deletedCount;
+});
+
