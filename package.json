@@ -52,7 +52,7 @@
     "video",
     "gui"
   ],
-  "author": "Antigravity",
+  "author": "YD Works",
   "license": "MIT",
   "devDependencies": {
     "electron": "^30.0.9",
