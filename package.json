@@ -1,5 +1,5 @@
 {
-  "name": "yddownload",
+  "name": "yddownloader",
   "version": "2.0.0",
   "description": "A premium GUI video downloader powered by yt-dlp",
   "main": "main.js",
@@ -8,8 +8,8 @@
     "build": "node build-portable.js"
   },
   "build": {
-    "appId": "com.antigravity.yddownload",
-    "productName": "ydDownload",
+    "appId": "com.antigravity.yddownloader",
+    "productName": "ydDownloader",
     "directories": {
       "output": "dist"
     },
