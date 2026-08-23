@@ -499,6 +499,10 @@ ipcMain.on('download-video', (event, options) => {
     args.push('--user-agent', customUa);
   }
 
+  if (options.downloadSubtitles) {
+    args.push('--write-subs', '--write-auto-subs', '--sub-langs', 'all', '--embed-subs');
+  }
+
   args.push(url);
 
   const env = { ...process.env, PYTHONUNBUFFERED: '1' };

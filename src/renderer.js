@@ -46,6 +46,7 @@ const closeSettingsBtn = document.getElementById('close-settings-btn');
 const pathDisplay = document.getElementById('path-display');
 const changePathBtn = document.getElementById('change-path-btn');
 const autoSubfolder = document.getElementById('auto-subfolder');
+const downloadSubtitles = document.getElementById('download-subtitles');
 const defaultRes = document.getElementById('default-res');
 const biliCookies = document.getElementById('bili-cookies');
 const customUa = document.getElementById('custom-ua');
@@ -103,6 +104,7 @@ defaultRes.value = localStorage.getItem('defaultResolution') || 'best';
 biliCookies.value = localStorage.getItem('biliCookies') || '';
 customUa.value = localStorage.getItem('customUa') || '';
 autoSubfolder.checked = localStorage.getItem('autoSubfolder') !== 'false';
+downloadSubtitles.checked = localStorage.getItem('downloadSubtitles') !== 'false';
 
 // Save settings (now triggered by Save button)
 const saveSettingsBtn = document.getElementById('save-settings-btn');
@@ -111,6 +113,7 @@ saveSettingsBtn.addEventListener('click', () => {
   localStorage.setItem('biliCookies', biliCookies.value.trim());
   localStorage.setItem('customUa', customUa.value.trim());
   localStorage.setItem('autoSubfolder', autoSubfolder.checked);
+  localStorage.setItem('downloadSubtitles', downloadSubtitles.checked);
   settingsModal.classList.add('hidden');
 });
 
@@ -135,6 +138,7 @@ settingsBtn.addEventListener('click', () => {
   biliCookies.value = localStorage.getItem('biliCookies') || '';
   customUa.value = localStorage.getItem('customUa') || '';
   autoSubfolder.checked = localStorage.getItem('autoSubfolder') !== 'false';
+  downloadSubtitles.checked = localStorage.getItem('downloadSubtitles') !== 'false';
   settingsModal.classList.remove('hidden');
 });
 closeSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
@@ -172,10 +176,16 @@ ipcRenderer.on('sniffer-result', (event, url) => {
 });
 
 async function analyzeUrl() {
-  const url = videoUrl.value.trim();
+  let url = videoUrl.value.trim();
   if (!url || !/^https?:\/\//.test(url)) {
     urlError.classList.remove('hidden');
     return;
+  }
+  
+  // Auto-append /videos for YouTube channel URLs to batch download channel
+  if (url.match(/^https?:\/\/(www\.)?youtube\.com\/(@[^/]+|channel\/[^/]+|c\/[^/]+|user\/[^/]+)\/?$/)) {
+    url = url.replace(/\/$/, '') + '/videos';
+    videoUrl.value = url;
   }
   
   urlError.classList.add('hidden');
@@ -332,7 +342,8 @@ async function processDownloadQueue() {
   ipcRenderer.send('download-video', {
     id, url, format, resolutionLimit, outputDir,
     biliCookies: localStorage.getItem('biliCookies') || '',
-    customUa: localStorage.getItem('customUa') || ''
+    customUa: localStorage.getItem('customUa') || '',
+    downloadSubtitles: localStorage.getItem('downloadSubtitles') !== 'false'
   });
 }
 
