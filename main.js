@@ -500,7 +500,7 @@ ipcMain.on('download-video', (event, options) => {
   }
 
   if (options.downloadSubtitles) {
-    args.push('--write-subs', '--write-auto-subs', '--sub-langs', 'all', '--embed-subs');
+    args.push('--write-subs', '--write-auto-subs', '--sub-langs', 'en.*,zh.*,ja.*,ko.*', '--embed-subs');
   }
 
   args.push(url);
