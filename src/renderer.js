@@ -104,7 +104,26 @@ defaultRes.value = localStorage.getItem('defaultResolution') || 'best';
 biliCookies.value = localStorage.getItem('biliCookies') || '';
 customUa.value = localStorage.getItem('customUa') || '';
 autoSubfolder.checked = localStorage.getItem('autoSubfolder') !== 'false';
+const videoDlSub = document.getElementById('video-dl-sub');
+const playlistDlSub = document.getElementById('playlist-dl-sub');
+const subDlSub = document.getElementById('sub-dl-sub');
+
+function syncSubCheckboxes(isChecked) {
+  localStorage.setItem('downloadSubtitles', isChecked);
+  if (downloadSubtitles) downloadSubtitles.checked = isChecked;
+  if (videoDlSub) videoDlSub.checked = isChecked;
+  if (playlistDlSub) playlistDlSub.checked = isChecked;
+  if (subDlSub) subDlSub.checked = isChecked;
+}
+
+[downloadSubtitles, videoDlSub, playlistDlSub, subDlSub].forEach(el => {
+  if (el) {
+    el.addEventListener('change', (e) => syncSubCheckboxes(e.target.checked));
+  }
+});
+
 downloadSubtitles.checked = localStorage.getItem('downloadSubtitles') !== 'false';
+syncSubCheckboxes(downloadSubtitles.checked);
 
 // Save settings (now triggered by Save button)
 const saveSettingsBtn = document.getElementById('save-settings-btn');
