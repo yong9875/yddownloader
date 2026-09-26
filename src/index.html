@@ -323,6 +323,15 @@
             <input type="text" id="custom-ua" class="text-input full-width" placeholder="Mozilla/5.0 ...">
           </div>
 
+          <div class="setting-group">
+            <label>下载核心 (yt-dlp Core)</label>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px;">
+              <span class="muted-text" id="ytdlp-version-display" style="font-size: 11px; font-family: monospace;">版本: 检测中...</span>
+              <button id="update-ytdlp-btn" class="btn-secondary" style="white-space: nowrap; font-size: 11px; padding: 4px 10px;">检查并更新核心</button>
+            </div>
+            <div id="ytdlp-update-status" class="muted-text" style="font-size: 11px; margin-top: 6px; display: none;"></div>
+          </div>
+
         </div>
         <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
           <button id="save-settings-btn" class="btn btn-primary">保存设置 (Save)</button>

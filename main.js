@@ -308,6 +308,10 @@ ipcMain.handle('get-video-info', async (event, { url, biliCookies, customUa, pla
     args.push('--cookies', cookiesPath);
   }
 
+  if (customUa) {
+    args.push('--user-agent', customUa);
+  }
+
   args.push(url);
 
   const env = { ...process.env, PYTHONUNBUFFERED: '1' };
@@ -461,7 +465,11 @@ ipcMain.on('download-video', (event, options) => {
   const ytdlpPath = path.join(binDir, 'yt-dlp.exe');
   const ffmpegPath = path.join(binDir, 'ffmpeg.exe');
 
-  const args = ['--js-runtimes', 'deno', '--impersonate', 'chrome'];
+  const args = [
+    '--js-runtimes', 'deno',
+    '--impersonate', 'chrome',
+    '--ignore-errors'
+  ];
 
   // Format selection
   if (format && format !== 'best') {
@@ -477,6 +485,13 @@ ipcMain.on('download-video', (event, options) => {
 
   // Output template
   if (outputDir) {
+    try {
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+    } catch (e) {
+      console.error('Failed to create output directory:', e);
+    }
     args.push('-o', path.join(outputDir, '%(title)s.%(ext)s'));
   }
 
@@ -500,7 +515,13 @@ ipcMain.on('download-video', (event, options) => {
   }
 
   if (options.downloadSubtitles) {
-    args.push('--write-subs', '--write-auto-subs', '--sub-langs', 'en,zh-Hans,zh-Hant,zh-CN,zh-TW,ja,ko', '--embed-subs');
+    args.push(
+      '--write-subs',
+      '--write-auto-subs',
+      '--sub-langs', 'en,zh-Hans,zh-Hant,zh-CN,zh-TW,ja,ko',
+      '--embed-subs',
+      '--sleep-subtitles', '1'
+    );
   }
 
   args.push(url);
@@ -509,6 +530,7 @@ ipcMain.on('download-video', (event, options) => {
   env.PATH = `${binDir};${env.PATH || ''}`;
 
   const child = spawn(ytdlpPath, args, { env, windowsHide: true });
+  let stderrBuffer = '';
 
   // yt-dlp progress parsing
   child.stdout.on('data', (data) => {
@@ -546,6 +568,10 @@ ipcMain.on('download-video', (event, options) => {
 
   child.stderr.on('data', (data) => {
     const text = data.toString();
+    stderrBuffer += text;
+    if (stderrBuffer.length > 8192) {
+      stderrBuffer = stderrBuffer.slice(-8192);
+    }
     if (text.includes('Merging') || text.includes('merge') || text.includes('[Merger]')) {
       event.sender.send('download-progress', {
         id,
@@ -559,10 +585,19 @@ ipcMain.on('download-video', (event, options) => {
     if (code === 0) {
       event.sender.send('download-progress', { id, status: 'completed', progress: 100 });
     } else {
+      let friendlyError = `yt-dlp exited with code ${code}`;
+      if (stderrBuffer) {
+        const errorLines = stderrBuffer.split(/[\r\n]+/)
+          .map(l => l.trim())
+          .filter(l => l.startsWith('ERROR:') || l.includes('HTTP Error') || l.includes('Sign in') || l.includes('unavailable') || l.includes('Private video'));
+        if (errorLines.length > 0) {
+          friendlyError = errorLines[errorLines.length - 1];
+        }
+      }
       event.sender.send('download-progress', {
         id,
         status: 'failed',
-        error: `yt-dlp exited with code ${code}`
+        error: friendlyError
       });
     }
   });
@@ -666,5 +701,35 @@ ipcMain.handle('batch-delete-files', async (event, tasks) => {
     }
   }
   return deletedCount;
+});
+
+// ── yt-dlp core version and update handlers ──
+ipcMain.handle('get-ytdlp-version', async () => {
+  const binDir = getBinDir();
+  const ytdlpPath = path.join(binDir, 'yt-dlp.exe');
+  return new Promise((resolve) => {
+    const child = spawn(ytdlpPath, ['--version'], { windowsHide: true });
+    let out = '';
+    child.stdout.on('data', d => out += d.toString());
+    child.on('close', () => resolve(out.trim() || 'Unknown'));
+    child.on('error', () => resolve('Not found'));
+  });
+});
+
+ipcMain.handle('update-ytdlp', async () => {
+  const binDir = getBinDir();
+  const ytdlpPath = path.join(binDir, 'yt-dlp.exe');
+  return new Promise((resolve) => {
+    const child = spawn(ytdlpPath, ['-U'], { windowsHide: true });
+    let output = '';
+    child.stdout.on('data', d => output += d.toString());
+    child.stderr.on('data', d => output += d.toString());
+    child.on('close', (code) => {
+      resolve({ success: code === 0, message: output.trim() });
+    });
+    child.on('error', (err) => {
+      resolve({ success: false, message: err.message });
+    });
+  });
 });
 

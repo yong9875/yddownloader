@@ -88,14 +88,15 @@ function saveHistory() {
 
 // ── Initialization ──
 ipcRenderer.invoke('get-default-download-dir').then(dir => {
-  currentDownloadDir = dir;
-  pathDisplay.textContent = dir;
+  const savedDir = localStorage.getItem('downloadDir');
+  currentDownloadDir = savedDir || dir;
+  pathDisplay.textContent = currentDownloadDir;
 });
 
 // Load history UI
 setTimeout(() => {
   downloadHistory.forEach(task => {
-    createQueueItemUI(task.id, task.title, task.channel, task.outputDir, true, task.status);
+    createQueueItemUI(task.id, task.title, task.channel, task.outputDir, true, task.status, task.error);
   });
 }, 100);
 
@@ -133,6 +134,7 @@ saveSettingsBtn.addEventListener('click', () => {
   localStorage.setItem('customUa', customUa.value.trim());
   localStorage.setItem('autoSubfolder', autoSubfolder.checked);
   localStorage.setItem('downloadSubtitles', downloadSubtitles.checked);
+  localStorage.setItem('downloadDir', currentDownloadDir);
   settingsModal.classList.add('hidden');
 });
 
@@ -151,13 +153,67 @@ ipcRenderer.on('window-maximized', (event, isMaximized) => {
   }
 });
 
-// ── Settings Modal ──
+// ── Settings Modal & yt-dlp Core Management ──
+const ytdlpVersionDisplay = document.getElementById('ytdlp-version-display');
+const updateYtdlpBtn = document.getElementById('update-ytdlp-btn');
+const ytdlpUpdateStatus = document.getElementById('ytdlp-update-status');
+
+async function refreshYtdlpVersion() {
+  if (ytdlpVersionDisplay) {
+    ytdlpVersionDisplay.textContent = '版本: 检测中...';
+    try {
+      const ver = await ipcRenderer.invoke('get-ytdlp-version');
+      ytdlpVersionDisplay.textContent = `版本: ${ver}`;
+    } catch (e) {
+      ytdlpVersionDisplay.textContent = '版本: 未知';
+    }
+  }
+}
+
+if (updateYtdlpBtn) {
+  updateYtdlpBtn.addEventListener('click', async () => {
+    updateYtdlpBtn.disabled = true;
+    updateYtdlpBtn.textContent = '正在更新...';
+    if (ytdlpUpdateStatus) {
+      ytdlpUpdateStatus.style.display = 'block';
+      ytdlpUpdateStatus.style.color = 'var(--text-muted)';
+      ytdlpUpdateStatus.textContent = '正在检测并拉取最新 yt-dlp 核心组件...';
+    }
+
+    try {
+      const res = await ipcRenderer.invoke('update-ytdlp');
+      if (res.success) {
+        if (ytdlpUpdateStatus) {
+          ytdlpUpdateStatus.style.color = 'var(--success-color)';
+          ytdlpUpdateStatus.textContent = res.message || '更新成功！已切换到最新核心。';
+        }
+        await refreshYtdlpVersion();
+      } else {
+        if (ytdlpUpdateStatus) {
+          ytdlpUpdateStatus.style.color = 'var(--danger-color)';
+          ytdlpUpdateStatus.textContent = `更新失败: ${res.message || '网络或权限错误'}`;
+        }
+      }
+    } catch (err) {
+      if (ytdlpUpdateStatus) {
+        ytdlpUpdateStatus.style.color = 'var(--danger-color)';
+        ytdlpUpdateStatus.textContent = `更新异常: ${err.message}`;
+      }
+    } finally {
+      updateYtdlpBtn.disabled = false;
+      updateYtdlpBtn.textContent = '检查并更新核心';
+    }
+  });
+}
+
 settingsBtn.addEventListener('click', () => {
   defaultRes.value = localStorage.getItem('defaultResolution') || 'best';
   biliCookies.value = localStorage.getItem('biliCookies') || '';
   customUa.value = localStorage.getItem('customUa') || '';
   autoSubfolder.checked = localStorage.getItem('autoSubfolder') !== 'false';
   downloadSubtitles.checked = localStorage.getItem('downloadSubtitles') !== 'false';
+  if (ytdlpUpdateStatus) ytdlpUpdateStatus.style.display = 'none';
+  refreshYtdlpVersion();
   settingsModal.classList.remove('hidden');
 });
 closeSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
@@ -167,6 +223,7 @@ changePathBtn.addEventListener('click', async () => {
   if (newPath) {
     currentDownloadDir = newPath;
     pathDisplay.textContent = newPath;
+    localStorage.setItem('downloadDir', newPath);
   }
 });
 
@@ -407,7 +464,7 @@ function getOrCreateChannelGroup(channelName) {
   return group.querySelector('.channel-tasks');
 }
 
-function createQueueItemUI(id, title, channel, outputDir, isHistory = false, historyStatus = 'Completed') {
+function createQueueItemUI(id, title, channel, outputDir, isHistory = false, historyStatus = 'Completed', historyError = '') {
   const tasksContainer = getOrCreateChannelGroup(channel || 'Uncategorized');
   
   const el = document.createElement('div');
@@ -529,6 +586,7 @@ function createQueueItemUI(id, title, channel, outputDir, isHistory = false, his
       document.getElementById(`folder-${id}`).classList.remove('hidden');
     } else {
       statusEl.style.color = 'var(--danger-color)';
+      statusEl.title = historyError || historyStatus;
       progressEl.style.background = 'var(--danger-color)';
       document.getElementById(`retry-${id}`).classList.remove('hidden');
     }
@@ -553,7 +611,8 @@ ipcRenderer.on('download-progress', (event, { id, status, progress, error }) => 
         format: taskData.format,
         resolutionLimit: taskData.resolutionLimit,
         site: taskData.site,
-        status: finalStatus
+        status: finalStatus,
+        error: error || ''
       });
       saveHistory();
       // Track completed downloads by URL
