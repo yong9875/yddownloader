@@ -257,28 +257,40 @@ ipcMain.handle('path-join', (event, ...paths) => {
   return path.join(...paths);
 });
 
-// ── Helper: Generate Netscape Cookie file from Bilibili string ──
-function generateBiliCookiesFile(cookieString) {
+// ── Helper: Generate Netscape Cookie file from cookie string ──
+function generateCookiesFile(cookieString, defaultDomain = '.bilibili.com', filename = 'cookies.txt') {
   if (!cookieString) return null;
-  const filePath = path.join(app.getPath('userData'), 'bilibili_cookies.txt');
+  const filePath = path.join(app.getPath('userData'), filename);
   let content = "# Netscape HTTP Cookie File\n# This file is generated automatically.\n\n";
-  const pairs = cookieString.split(';');
-  for (const pair of pairs) {
-    const trimmed = pair.trim();
-    if (!trimmed) continue;
-    const eqIdx = trimmed.indexOf('=');
-    if (eqIdx === -1) continue;
-    const key = trimmed.substring(0, eqIdx);
-    const value = trimmed.substring(eqIdx + 1);
-    content += `.bilibili.com\tTRUE\t/\tFALSE\t2147483647\t${key}\t${value}\n`;
+  if (cookieString.includes('\t') || cookieString.startsWith('# Netscape')) {
+    content = cookieString;
+  } else {
+    const pairs = cookieString.split(';');
+    for (const pair of pairs) {
+      const trimmed = pair.trim();
+      if (!trimmed) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.substring(0, eqIdx);
+      const value = trimmed.substring(eqIdx + 1);
+      content += `${defaultDomain}\tTRUE\t/\tFALSE\t2147483647\t${key}\t${value}\n`;
+    }
   }
   fs.writeFileSync(filePath, content, 'utf8');
   return filePath;
 }
 
 // ── Analyze video URL using yt-dlp ──
-ipcMain.handle('get-video-info', async (event, { url, biliCookies, customUa, playlistEnd }) => {
-  const cookiesPath = generateBiliCookiesFile(biliCookies);
+ipcMain.handle('get-video-info', async (event, { url, biliCookies, youtubeCookies, customUa, playlistEnd }) => {
+  const isBili = /bilibili\.com|b23\.tv/i.test(url);
+  const isYt = /youtube\.com|youtu\.be/i.test(url);
+  let cookiesPath = null;
+  if (isBili && biliCookies) {
+    cookiesPath = generateCookiesFile(biliCookies, '.bilibili.com', 'bilibili_cookies.txt');
+  } else if (isYt && youtubeCookies) {
+    cookiesPath = generateCookiesFile(youtubeCookies, '.youtube.com', 'youtube_cookies.txt');
+  }
+
   const binDir = getBinDir();
   const ytdlpPath = path.join(binDir, 'yt-dlp.exe');
   const ffmpegPath = path.join(binDir, 'ffmpeg.exe');
@@ -292,6 +304,7 @@ ipcMain.handle('get-video-info', async (event, { url, biliCookies, customUa, pla
     '--ignore-no-formats-error',
     '--js-runtimes', 'deno',
     '--impersonate', 'chrome',
+    '--extractor-args', 'youtube:player_client=android,web',
     '--no-warnings'
   ];
 
@@ -459,8 +472,16 @@ function formatBytes(bytes) {
 
 // ── Download video using yt-dlp ──
 ipcMain.on('download-video', (event, options) => {
-  const { id, url, format, resolutionLimit, outputDir, biliCookies, customUa } = options;
-  const cookiesPath = generateBiliCookiesFile(biliCookies);
+  const { id, url, format, resolutionLimit, outputDir, biliCookies, youtubeCookies, customUa } = options;
+  const isBili = /bilibili\.com|b23\.tv/i.test(url);
+  const isYt = /youtube\.com|youtu\.be/i.test(url);
+  let cookiesPath = null;
+  if (isBili && biliCookies) {
+    cookiesPath = generateCookiesFile(biliCookies, '.bilibili.com', 'bilibili_cookies.txt');
+  } else if (isYt && youtubeCookies) {
+    cookiesPath = generateCookiesFile(youtubeCookies, '.youtube.com', 'youtube_cookies.txt');
+  }
+
   const binDir = getBinDir();
   const ytdlpPath = path.join(binDir, 'yt-dlp.exe');
   const ffmpegPath = path.join(binDir, 'ffmpeg.exe');
@@ -468,6 +489,7 @@ ipcMain.on('download-video', (event, options) => {
   const args = [
     '--js-runtimes', 'deno',
     '--impersonate', 'chrome',
+    '--extractor-args', 'youtube:player_client=android,web',
     '--ignore-errors'
   ];
 

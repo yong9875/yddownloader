@@ -49,6 +49,7 @@ const autoSubfolder = document.getElementById('auto-subfolder');
 const downloadSubtitles = document.getElementById('download-subtitles');
 const defaultRes = document.getElementById('default-res');
 const biliCookies = document.getElementById('bili-cookies');
+const youtubeCookies = document.getElementById('youtube-cookies');
 const customUa = document.getElementById('custom-ua');
 
 // ── State ──
@@ -103,6 +104,7 @@ setTimeout(() => {
 // Load settings
 defaultRes.value = localStorage.getItem('defaultResolution') || 'best';
 biliCookies.value = localStorage.getItem('biliCookies') || '';
+if (youtubeCookies) youtubeCookies.value = localStorage.getItem('youtubeCookies') || '';
 customUa.value = localStorage.getItem('customUa') || '';
 autoSubfolder.checked = localStorage.getItem('autoSubfolder') !== 'false';
 const videoDlSub = document.getElementById('video-dl-sub');
@@ -131,6 +133,7 @@ const saveSettingsBtn = document.getElementById('save-settings-btn');
 saveSettingsBtn.addEventListener('click', () => {
   localStorage.setItem('defaultResolution', defaultRes.value);
   localStorage.setItem('biliCookies', biliCookies.value.trim());
+  if (youtubeCookies) localStorage.setItem('youtubeCookies', youtubeCookies.value.trim());
   localStorage.setItem('customUa', customUa.value.trim());
   localStorage.setItem('autoSubfolder', autoSubfolder.checked);
   localStorage.setItem('downloadSubtitles', downloadSubtitles.checked);
@@ -209,6 +212,7 @@ if (updateYtdlpBtn) {
 settingsBtn.addEventListener('click', () => {
   defaultRes.value = localStorage.getItem('defaultResolution') || 'best';
   biliCookies.value = localStorage.getItem('biliCookies') || '';
+  if (youtubeCookies) youtubeCookies.value = localStorage.getItem('youtubeCookies') || '';
   customUa.value = localStorage.getItem('customUa') || '';
   autoSubfolder.checked = localStorage.getItem('autoSubfolder') !== 'false';
   downloadSubtitles.checked = localStorage.getItem('downloadSubtitles') !== 'false';
@@ -274,6 +278,7 @@ async function analyzeUrl() {
   const response = await ipcRenderer.invoke('get-video-info', {
     url,
     biliCookies: localStorage.getItem('biliCookies') || '',
+    youtubeCookies: localStorage.getItem('youtubeCookies') || '',
     customUa: localStorage.getItem('customUa') || ''
   });
 
@@ -418,6 +423,7 @@ async function processDownloadQueue() {
   ipcRenderer.send('download-video', {
     id, url, format, resolutionLimit, outputDir,
     biliCookies: localStorage.getItem('biliCookies') || '',
+    youtubeCookies: localStorage.getItem('youtubeCookies') || '',
     customUa: localStorage.getItem('customUa') || '',
     downloadSubtitles: localStorage.getItem('downloadSubtitles') !== 'false'
   });
@@ -772,6 +778,7 @@ async function addSubscription() {
     const response = await ipcRenderer.invoke('get-video-info', {
       url,
       biliCookies: localStorage.getItem('biliCookies') || '',
+      youtubeCookies: localStorage.getItem('youtubeCookies') || '',
       customUa: localStorage.getItem('customUa') || '',
       playlistEnd: 1
     });
@@ -890,6 +897,7 @@ async function fetchLatestVideos(sub) {
     const response = await ipcRenderer.invoke('get-video-info', {
       url: sub.url,
       biliCookies: localStorage.getItem('biliCookies') || '',
+      youtubeCookies: localStorage.getItem('youtubeCookies') || '',
       customUa: localStorage.getItem('customUa') || '',
       playlistEnd: limit
     });
@@ -1030,6 +1038,7 @@ subRefreshAllBtn.addEventListener('click', async () => {
       const response = await ipcRenderer.invoke('get-video-info', {
         url: sub.url,
         biliCookies: localStorage.getItem('biliCookies') || '',
+        youtubeCookies: localStorage.getItem('youtubeCookies') || '',
         customUa: localStorage.getItem('customUa') || '',
         playlistEnd: 1
       });
@@ -1149,6 +1158,7 @@ async function checkSubscriptionUpdates() {
       const response = await ipcRenderer.invoke('get-video-info', {
         url: fetchUrl,
         biliCookies: localStorage.getItem('biliCookies') || '',
+        youtubeCookies: localStorage.getItem('youtubeCookies') || '',
         customUa: localStorage.getItem('customUa') || '',
         playlistEnd: 10
       });
