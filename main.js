@@ -541,6 +541,7 @@ ipcMain.on('download-video', (event, options) => {
       '--write-subs',
       '--write-auto-subs',
       '--sub-langs', 'en,zh-Hans,zh-Hant,zh-CN,zh-TW,ja,ko',
+      '--convert-subs', 'srt',
       '--embed-subs',
       '--sleep-subtitles', '1'
     );
