@@ -304,7 +304,6 @@ ipcMain.handle('get-video-info', async (event, { url, biliCookies, youtubeCookie
     '--ignore-no-formats-error',
     '--js-runtimes', 'deno',
     '--impersonate', 'chrome',
-    '--extractor-args', 'youtube:player_client=android,web',
     '--no-warnings'
   ];
 
@@ -359,77 +358,111 @@ ipcMain.handle('get-video-info', async (event, { url, biliCookies, youtubeCookie
 function normalizeYtdlpInfo(raw) {
   const streams = {};
 
-  if (raw.formats && Array.isArray(raw.formats)) {
-    // Group: prefer formats that have both video+audio, then video-only
-    const combined = raw.formats.filter(f =>
-      f.vcodec && f.vcodec !== 'none' && f.acodec && f.acodec !== 'none'
-    );
-
-    const videoOnly = raw.formats.filter(f =>
-      f.vcodec && f.vcodec !== 'none' && (!f.acodec || f.acodec === 'none')
-    );
-
-    const audioOnly = raw.formats.filter(f =>
-      f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none')
-    );
-
-    // Add combined formats first
-    for (const f of combined) {
-      const id = f.format_id;
-      const height = f.height || '';
-      const ext = f.ext || 'mp4';
-      const size = f.filesize || f.filesize_approx || 0;
-      const quality = height ? `${height}p` : (f.format_note || id);
-      streams[id] = {
-        id,
-        height: f.height || 0,
-        quality: `${quality} [${ext}] (video+audio)`,
-        ext,
-        size,
-        formatted_size: formatBytes(size)
-      };
-    }
-
-    // Add video-only (will need ffmpeg merge)
-    for (const f of videoOnly) {
-      const id = f.format_id;
-      const height = f.height || '';
-      const ext = f.ext || 'mp4';
-      const size = f.filesize || f.filesize_approx || 0;
-      const quality = height ? `${height}p` : (f.format_note || id);
-      streams[id] = {
-        id,
-        height: f.height || 0,
-        quality: `${quality} [${ext}] (video only, needs merge)`,
-        ext,
-        size,
-        formatted_size: formatBytes(size)
-      };
-    }
-
-    // Best audio
-    if (audioOnly.length > 0) {
-      const best = audioOnly[audioOnly.length - 1];
-      streams[best.format_id] = {
-        id: best.format_id,
-        height: 0,
-        quality: `Audio ${best.abr || ''}kbps [${best.ext}]`,
-        ext: best.ext || 'm4a',
-        size: best.filesize || best.filesize_approx || 0,
-        formatted_size: formatBytes(best.filesize || best.filesize_approx || 0)
-      };
-    }
-  }
-
-  // Always add a "best" virtual format at the top
+  // Always put "best" at the very first position
   streams['best'] = {
     id: 'best',
-    height: 99999, // ensures it sorts at top if not matched
-    quality: '🏆 Best Quality (auto)',
+    height: 99999,
+    quality: '🏆 最佳画质 (Best Quality - Auto)',
     ext: 'mp4',
     size: 0,
     formatted_size: ''
   };
+
+  if (raw.formats && Array.isArray(raw.formats)) {
+    // 1. Group video formats with valid height (exclude storyboards where vcodec === 'none')
+    const videoFormats = raw.formats.filter(f =>
+      f.height && f.height > 0 && f.vcodec && f.vcodec !== 'none'
+    );
+
+    // Extract unique heights sorted descending (e.g. 2160, 1440, 1080, 720, 480, 360, 240, 144)
+    const uniqueHeights = Array.from(new Set(videoFormats.map(f => f.height))).sort((a, b) => b - a);
+
+    for (const h of uniqueHeights) {
+      let label = `${h}p`;
+      if (h >= 2160) label = `4K (2160p) [mp4]`;
+      else if (h >= 1440) label = `2K (1440p) [mp4]`;
+      else if (h >= 1080) label = `1080p 全高清 [mp4]`;
+      else if (h >= 720) label = `720p 高清 [mp4]`;
+      else if (h >= 480) label = `480p 标清 [mp4]`;
+      else if (h >= 360) label = `360p 流畅 [mp4]`;
+      else label = `${h}p [mp4]`;
+
+      const matching = videoFormats.filter(f => f.height === h);
+      const withSize = matching.find(f => (f.filesize || f.filesize_approx));
+      const approxSize = withSize ? (withSize.filesize || withSize.filesize_approx) : 0;
+
+      streams[`res:${h}`] = {
+        id: `res:${h}`,
+        height: h,
+        quality: label,
+        ext: 'mp4',
+        size: approxSize,
+        formatted_size: approxSize ? formatBytes(approxSize) : ''
+      };
+    }
+
+    // Best audio
+    const audioOnly = raw.formats.filter(f =>
+      f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none')
+    );
+    if (audioOnly.length > 0) {
+      const best = audioOnly[audioOnly.length - 1];
+      const audioSize = best.filesize || best.filesize_approx || 0;
+      streams['audio_only'] = {
+        id: 'audio_only',
+        height: 0,
+        quality: `🎵 仅音频 (Audio Only) [${best.abr ? best.abr + 'k' : best.ext || 'm4a'}]`,
+        ext: best.ext || 'm4a',
+        size: audioSize,
+        formatted_size: audioSize ? formatBytes(audioSize) : ''
+      };
+    }
+  }
+
+  // 2. Extract Subtitles Information (Manual/Official vs Auto-generated)
+  const subtitles = {
+    manual: [],
+    auto: [],
+    hasSubtitles: false,
+    totalCount: 0
+  };
+
+  if (raw.subtitles && typeof raw.subtitles === 'object') {
+    for (const [lang, formats] of Object.entries(raw.subtitles)) {
+      const name = (formats && formats[0] && formats[0].name) ? formats[0].name : lang;
+      subtitles.manual.push({
+        lang,
+        name,
+        isAuto: false,
+        label: `${name} [${lang}] (官方精校)`
+      });
+    }
+  }
+
+  if (raw.automatic_captions && typeof raw.automatic_captions === 'object') {
+    const priorityCodes = ['zh-Hans', 'zh-Hant', 'zh-CN', 'zh-TW', 'zh', 'en', 'ja', 'ko', 'es', 'fr', 'de', 'ru'];
+    for (const [lang, formats] of Object.entries(raw.automatic_captions)) {
+      if (subtitles.manual.some(s => s.lang === lang)) continue;
+      const name = (formats && formats[0] && formats[0].name) ? formats[0].name : lang;
+      const isPriority = priorityCodes.some(p => lang.toLowerCase().startsWith(p.toLowerCase()));
+      subtitles.auto.push({
+        lang,
+        name,
+        isAuto: true,
+        isPriority,
+        label: `${name} [${lang}] (自动生成)`
+      });
+    }
+
+    subtitles.auto.sort((a, b) => {
+      if (a.isPriority && !b.isPriority) return -1;
+      if (!a.isPriority && b.isPriority) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  subtitles.totalCount = subtitles.manual.length + subtitles.auto.length;
+  subtitles.hasSubtitles = subtitles.totalCount > 0;
 
   if (raw._type === 'playlist') {
     return {
@@ -457,7 +490,8 @@ function normalizeYtdlpInfo(raw) {
     isPlaylist: false,
     duration: raw.duration || 0,
     thumbnail: raw.thumbnail || '',
-    streams
+    streams,
+    subtitles
   };
 }
 
@@ -489,20 +523,26 @@ ipcMain.on('download-video', (event, options) => {
   const args = [
     '--js-runtimes', 'deno',
     '--impersonate', 'chrome',
-    '--extractor-args', 'youtube:player_client=android,web',
     '--ignore-errors'
   ];
 
   // Format selection
-  if (format && format !== 'best') {
-    // For video-only formats, also grab best audio and merge
+  if (format === 'audio_only') {
+    args.push('-x', '--audio-format', 'mp3', '--audio-quality', '0');
+  } else if (format && format.startsWith('res:')) {
+    const res = format.replace('res:', '');
+    args.push('-S', `res:${res}`);
+    args.push('--merge-output-format', 'mp4');
+  } else if (format && format !== 'best') {
+    // For video-only formats or specific formats, also grab best audio and merge
     args.push('-f', `${format}+bestaudio/best`);
+    args.push('--merge-output-format', 'mp4');
   } else {
     // If a resolution limit is set and we're automatically finding the best, apply the limit
     if (resolutionLimit && resolutionLimit !== 'best') {
       args.push('-S', `res:${resolutionLimit}`);
     }
-    // We intentionally omit -f here so yt-dlp uses its robust default (bestvideo*+bestaudio/best)
+    args.push('--merge-output-format', 'mp4');
   }
 
   // Output template
@@ -516,9 +556,6 @@ ipcMain.on('download-video', (event, options) => {
     }
     args.push('-o', path.join(outputDir, '%(title)s.%(ext)s'));
   }
-
-  // Merge to mp4
-  args.push('--merge-output-format', 'mp4');
 
   // Point to our bundled ffmpeg
   if (fs.existsSync(ffmpegPath)) {
@@ -536,15 +573,20 @@ ipcMain.on('download-video', (event, options) => {
     args.push('--user-agent', customUa);
   }
 
-  if (options.downloadSubtitles) {
-    args.push(
-      '--write-subs',
-      '--write-auto-subs',
-      '--sub-langs', 'en,zh-Hans,zh-Hant,zh-CN,zh-TW,ja,ko',
-      '--convert-subs', 'srt',
-      '--embed-subs',
-      '--sleep-subtitles', '1'
-    );
+  if (options.downloadSubtitles && options.subtitleLang !== 'none') {
+    args.push('--write-subs', '--write-auto-subs');
+    if (options.subtitleLang === 'all') {
+      args.push('--sub-langs', 'all');
+    } else if (options.subtitleLang && options.subtitleLang !== 'auto_smart') {
+      args.push('--sub-langs', options.subtitleLang);
+    } else {
+      args.push('--sub-langs', 'en,zh-Hans,zh-Hant,zh-CN,zh-TW,ja,ko');
+    }
+    args.push('--convert-subs', 'srt');
+    if (options.embedSubtitles !== false) {
+      args.push('--embed-subs');
+    }
+    args.push('--sleep-subtitles', '1');
   }
 
   args.push(url);

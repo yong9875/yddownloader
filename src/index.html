@@ -95,14 +95,16 @@
           <div class="result-info">
             <span class="site-badge" id="video-site">YT</span>
             <span class="result-title" id="video-title">Video title here...</span>
+            <span class="site-badge" id="video-sub-badge" style="display: none; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 11px;">0 字幕</span>
           </div>
           <div class="result-actions">
-            <label class="checkbox-label" style="margin-right: 12px; margin-bottom: 0;">
+            <select id="video-stream" class="minimal-select" title="选择视频画质/分辨率"></select>
+            <select id="video-sub-lang" class="minimal-select subtitle-select" title="选择字幕语言"></select>
+            <label class="checkbox-label" id="video-dl-sub-label" style="margin-right: 0; margin-bottom: 0;" title="内嵌字幕至MP4视频 (同时保存 .srt 文件)">
               <input type="checkbox" id="video-dl-sub">
-              <span class="checkbox-custom"></span> 内嵌字幕
+              <span class="checkbox-custom"></span> 内嵌
             </label>
-            <select id="video-stream" class="minimal-select"></select>
-            <button id="download-btn" class="btn btn-primary">Download</button>
+            <button id="download-btn" class="btn btn-primary">下载 (Download)</button>
           </div>
         </div>
 
@@ -114,11 +116,7 @@
             <span class="muted-text" id="playlist-count">(0)</span>
           </div>
           <div class="result-actions">
-            <label class="checkbox-label" style="margin-right: 12px; margin-bottom: 0;">
-              <input type="checkbox" id="playlist-dl-sub">
-              <span class="checkbox-custom"></span> 内嵌字幕
-            </label>
-            <select id="playlist-res" class="minimal-select">
+            <select id="playlist-res" class="minimal-select" title="选择画质">
               <option value="best">Quality: Best</option>
               <option value="2160">Quality: 4K</option>
               <option value="1440">Quality: 2K</option>
@@ -126,6 +124,17 @@
               <option value="720">Quality: 720p</option>
               <option value="480">Quality: 480p</option>
             </select>
+            <select id="playlist-sub-lang" class="minimal-select subtitle-select" title="选择字幕语言">
+              <option value="auto_smart">智能字幕 (中/英优先)</option>
+              <option value="zh-Hans">仅简体中文</option>
+              <option value="en">仅英文</option>
+              <option value="all">所有可用字幕</option>
+              <option value="none">不下载字幕</option>
+            </select>
+            <label class="checkbox-label" style="margin-right: 0; margin-bottom: 0;" title="内嵌字幕至MP4视频">
+              <input type="checkbox" id="playlist-dl-sub">
+              <span class="checkbox-custom"></span> 内嵌
+            </label>
             <button id="download-playlist-btn" class="btn btn-primary">Download All</button>
           </div>
           <!-- Collapsible playlist selection -->
@@ -203,11 +212,7 @@
                   <button id="sub-fetch-btn" class="btn btn-secondary">获取最新</button>
                 </div>
                 <div class="sub-actions-right">
-                  <label class="checkbox-label" style="margin-right: 12px; margin-bottom: 0;">
-                    <input type="checkbox" id="sub-dl-sub">
-                    <span class="checkbox-custom"></span> 内嵌字幕
-                  </label>
-                  <select id="sub-download-res" class="minimal-select">
+                  <select id="sub-download-res" class="minimal-select" title="选择画质">
                     <option value="best">画质: 最佳</option>
                     <option value="2160">画质: 4K</option>
                     <option value="1440">画质: 2K</option>
@@ -215,6 +220,17 @@
                     <option value="720">画质: 720p</option>
                     <option value="480">画质: 480p</option>
                   </select>
+                  <select id="sub-sub-lang" class="minimal-select subtitle-select" title="选择字幕语言">
+                    <option value="auto_smart">智能字幕 (中/英优先)</option>
+                    <option value="zh-Hans">仅简体中文</option>
+                    <option value="en">仅英文</option>
+                    <option value="all">所有可用字幕</option>
+                    <option value="none">不下载字幕</option>
+                  </select>
+                  <label class="checkbox-label" style="margin-right: 0; margin-bottom: 0;" title="内嵌字幕至MP4视频">
+                    <input type="checkbox" id="sub-dl-sub">
+                    <span class="checkbox-custom"></span> 内嵌
+                  </label>
                   <button id="sub-download-btn" class="btn btn-primary" disabled>下载所选 (0)</button>
                 </div>
               </div>
@@ -298,6 +314,17 @@
               <span class="checkbox-custom"></span>
               自动下载并内嵌字幕 (Auto download & embed subtitles)
             </label>
+          </div>
+
+          <div class="setting-group" id="default-sub-lang-group">
+            <label for="default-sub-lang">默认首选字幕语言 (Default Subtitle Language)</label>
+            <select id="default-sub-lang" class="minimal-select full-width">
+              <option value="auto_smart">智能优先 (中/英文优先 - 推荐)</option>
+              <option value="zh-Hans">仅简体中文 (zh-Hans)</option>
+              <option value="zh-Hant">仅繁体中文 (zh-Hant)</option>
+              <option value="en">仅英文 (English)</option>
+              <option value="all">所有可用字幕语言 (All)</option>
+            </select>
           </div>
 
           <div class="setting-group">

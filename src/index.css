@@ -303,9 +303,21 @@ body {
   transition: border-color 0.2s;
 }
 
-.minimal-select option {
+.minimal-select option, .minimal-select optgroup {
   background-color: var(--bg-main);
   color: var(--text-main);
+}
+
+.minimal-select optgroup {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.subtitle-select {
+  max-width: 190px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .minimal-select:hover, .minimal-select:focus {

@@ -47,10 +47,17 @@ const pathDisplay = document.getElementById('path-display');
 const changePathBtn = document.getElementById('change-path-btn');
 const autoSubfolder = document.getElementById('auto-subfolder');
 const downloadSubtitles = document.getElementById('download-subtitles');
+const defaultSubLang = document.getElementById('default-sub-lang');
 const defaultRes = document.getElementById('default-res');
 const biliCookies = document.getElementById('bili-cookies');
 const youtubeCookies = document.getElementById('youtube-cookies');
 const customUa = document.getElementById('custom-ua');
+
+// Subtitle elements
+const videoSubBadge = document.getElementById('video-sub-badge');
+const videoSubLang = document.getElementById('video-sub-lang');
+const playlistSubLang = document.getElementById('playlist-sub-lang');
+const subSubLang = document.getElementById('sub-sub-lang');
 
 // ── State ──
 let currentDownloadDir = '';
@@ -103,6 +110,7 @@ setTimeout(() => {
 
 // Load settings
 defaultRes.value = localStorage.getItem('defaultResolution') || 'best';
+if (defaultSubLang) defaultSubLang.value = localStorage.getItem('defaultSubLang') || 'auto_smart';
 biliCookies.value = localStorage.getItem('biliCookies') || '';
 if (youtubeCookies) youtubeCookies.value = localStorage.getItem('youtubeCookies') || '';
 customUa.value = localStorage.getItem('customUa') || '';
@@ -117,6 +125,14 @@ function syncSubCheckboxes(isChecked) {
   if (videoDlSub) videoDlSub.checked = isChecked;
   if (playlistDlSub) playlistDlSub.checked = isChecked;
   if (subDlSub) subDlSub.checked = isChecked;
+
+  if (videoSubLang) {
+    if (!isChecked) {
+      videoSubLang.value = 'none';
+    } else if (videoSubLang.value === 'none') {
+      videoSubLang.value = localStorage.getItem('defaultSubLang') || 'auto_smart';
+    }
+  }
 }
 
 [downloadSubtitles, videoDlSub, playlistDlSub, subDlSub].forEach(el => {
@@ -125,6 +141,16 @@ function syncSubCheckboxes(isChecked) {
   }
 });
 
+if (videoSubLang) {
+  videoSubLang.addEventListener('change', () => {
+    if (videoSubLang.value === 'none') {
+      if (videoDlSub) videoDlSub.checked = false;
+    } else {
+      if (videoDlSub) videoDlSub.checked = true;
+    }
+  });
+}
+
 downloadSubtitles.checked = localStorage.getItem('downloadSubtitles') !== 'false';
 syncSubCheckboxes(downloadSubtitles.checked);
 
@@ -132,6 +158,7 @@ syncSubCheckboxes(downloadSubtitles.checked);
 const saveSettingsBtn = document.getElementById('save-settings-btn');
 saveSettingsBtn.addEventListener('click', () => {
   localStorage.setItem('defaultResolution', defaultRes.value);
+  if (defaultSubLang) localStorage.setItem('defaultSubLang', defaultSubLang.value);
   localStorage.setItem('biliCookies', biliCookies.value.trim());
   if (youtubeCookies) localStorage.setItem('youtubeCookies', youtubeCookies.value.trim());
   localStorage.setItem('customUa', customUa.value.trim());
@@ -211,6 +238,7 @@ if (updateYtdlpBtn) {
 
 settingsBtn.addEventListener('click', () => {
   defaultRes.value = localStorage.getItem('defaultResolution') || 'best';
+  if (defaultSubLang) defaultSubLang.value = localStorage.getItem('defaultSubLang') || 'auto_smart';
   biliCookies.value = localStorage.getItem('biliCookies') || '';
   if (youtubeCookies) youtubeCookies.value = localStorage.getItem('youtubeCookies') || '';
   customUa.value = localStorage.getItem('customUa') || '';
@@ -309,15 +337,122 @@ function renderVideoResult(meta) {
   videoSite.textContent = meta.site;
   videoTitle.textContent = meta.title;
   
+  // 1. Populate Video Stream / Resolutions
   videoStream.innerHTML = '';
+  const preferredRes = localStorage.getItem('defaultResolution') || 'best';
+  let matchedOption = null;
+
   Object.values(meta.streams).forEach(stream => {
     const opt = document.createElement('option');
     opt.value = stream.id;
     opt.textContent = stream.quality + (stream.formatted_size ? ` (${stream.formatted_size})` : '');
-    if (stream.id === 'best') opt.selected = true;
+    
+    // Check if matches user default resolution preference (e.g. res:1080 matches 1080)
+    if (preferredRes !== 'best' && stream.id === `res:${preferredRes}`) {
+      matchedOption = opt;
+    } else if (!matchedOption && stream.id === 'best') {
+      matchedOption = opt;
+    }
+
     videoStream.appendChild(opt);
   });
-  
+
+  if (matchedOption) {
+    matchedOption.selected = true;
+  }
+
+  // 2. Populate Subtitle Options
+  if (videoSubLang) {
+    videoSubLang.innerHTML = '';
+    const subs = meta.subtitles || { manual: [], auto: [], hasSubtitles: false, totalCount: 0 };
+    
+    if (videoSubBadge) {
+      if (subs.hasSubtitles) {
+        videoSubBadge.style.display = 'inline-block';
+        videoSubBadge.textContent = `${subs.totalCount} 个字幕可用`;
+        videoSubBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+        videoSubBadge.style.color = '#10b981';
+      } else {
+        videoSubBadge.style.display = 'inline-block';
+        videoSubBadge.textContent = '无字幕';
+        videoSubBadge.style.background = 'rgba(150, 150, 150, 0.15)';
+        videoSubBadge.style.color = 'var(--text-muted)';
+      }
+    }
+
+    if (!subs.hasSubtitles) {
+      const noneOpt = document.createElement('option');
+      noneOpt.value = 'none';
+      noneOpt.textContent = '🚫 无可用字幕';
+      videoSubLang.appendChild(noneOpt);
+      videoSubLang.disabled = true;
+      if (videoDlSub) {
+        videoDlSub.checked = false;
+        videoDlSub.disabled = true;
+      }
+    } else {
+      videoSubLang.disabled = false;
+      if (videoDlSub) videoDlSub.disabled = false;
+
+      // Option: No subtitles
+      const noneOpt = document.createElement('option');
+      noneOpt.value = 'none';
+      noneOpt.textContent = '🚫 不下载字幕 (No Subtitles)';
+      videoSubLang.appendChild(noneOpt);
+
+      // Option: Smart priority (default)
+      const smartOpt = document.createElement('option');
+      smartOpt.value = 'auto_smart';
+      smartOpt.textContent = '🌐 智能优先 (中/英文优先 - 推荐)';
+      videoSubLang.appendChild(smartOpt);
+
+      // Option: All subtitles
+      const allOpt = document.createElement('option');
+      allOpt.value = 'all';
+      allOpt.textContent = '📦 下载所有检测到的字幕语言';
+      videoSubLang.appendChild(allOpt);
+
+      // Manual / Creator subtitles group
+      if (subs.manual && subs.manual.length > 0) {
+        const groupManual = document.createElement('optgroup');
+        groupManual.label = '✨ 创作者官方字幕 (精校)';
+        subs.manual.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.lang;
+          opt.textContent = `📄 ${s.name} [${s.lang}]`;
+          groupManual.appendChild(opt);
+        });
+        videoSubLang.appendChild(groupManual);
+      }
+
+      // Auto-generated subtitles group
+      if (subs.auto && subs.auto.length > 0) {
+        const groupAuto = document.createElement('optgroup');
+        groupAuto.label = '🤖 自动生成/翻译字幕';
+        subs.auto.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.lang;
+          opt.textContent = `🤖 ${s.name} [${s.lang}]`;
+          groupAuto.appendChild(opt);
+        });
+        videoSubLang.appendChild(groupAuto);
+      }
+
+      // Default selection based on user settings
+      const globalSubEnabled = localStorage.getItem('downloadSubtitles') !== 'false';
+      const defaultLangPref = localStorage.getItem('defaultSubLang') || 'auto_smart';
+
+      if (!globalSubEnabled) {
+        videoSubLang.value = 'none';
+        if (videoDlSub) videoDlSub.checked = false;
+      } else {
+        const hasPref = Array.from(videoSubLang.options).some(o => o.value === defaultLangPref);
+        videoSubLang.value = hasPref ? defaultLangPref : 'auto_smart';
+        if (videoDlSub) videoDlSub.checked = true;
+      }
+    }
+  }
+
   videoResult.classList.remove('hidden');
 }
 
@@ -368,8 +503,20 @@ downloadBtn.addEventListener('click', () => {
   const url = videoUrl.value.trim();
   const savedRes = localStorage.getItem('defaultResolution') || 'best';
   const resLimit = streamId === 'best' ? savedRes : 'best';
-  
-  enqueueDownload(url, analyzedMetadata.title, analyzedMetadata.channel, streamId, resLimit, analyzedMetadata.site);
+
+  const subLang = videoSubLang ? videoSubLang.value : 'none';
+  const embedSub = videoDlSub ? videoDlSub.checked : false;
+
+  enqueueDownload(
+    url,
+    analyzedMetadata.title,
+    analyzedMetadata.channel,
+    streamId,
+    resLimit,
+    analyzedMetadata.site,
+    subLang,
+    embedSub
+  );
   hideAllResults();
   videoUrl.value = '';
 });
@@ -377,15 +524,26 @@ downloadBtn.addEventListener('click', () => {
 downloadPlaylistBtn.addEventListener('click', () => {
   if (!analyzedMetadata || !analyzedMetadata.isPlaylist) return;
   const resLimit = playlistRes.value;
-  
+  const subLang = playlistSubLang ? playlistSubLang.value : (playlistDlSub && playlistDlSub.checked ? 'auto_smart' : 'none');
+  const embedSub = playlistDlSub ? playlistDlSub.checked : false;
+
   document.querySelectorAll('.playlist-checkbox:checked').forEach(cb => {
     const idx = parseInt(cb.value, 10);
     const entry = analyzedMetadata.entries[idx];
     if (entry && entry.url) {
-      enqueueDownload(entry.url, entry.title, entry.channel || analyzedMetadata.channel, 'best', resLimit, analyzedMetadata.site);
+      enqueueDownload(
+        entry.url,
+        entry.title,
+        entry.channel || analyzedMetadata.channel,
+        'best',
+        resLimit,
+        analyzedMetadata.site,
+        subLang,
+        embedSub
+      );
     }
   });
-  
+
   hideAllResults();
   videoUrl.value = '';
 });
@@ -395,8 +553,8 @@ function sanitizePath(str) {
   return str.replace(/[<>:"/\\|?*\x00-\x1F]/g, '').trim() || 'Download';
 }
 
-function enqueueDownload(url, title, channel, format, resolutionLimit, site) {
-  downloadQueue.push({ url, title, channel, format, resolutionLimit, site });
+function enqueueDownload(url, title, channel, format, resolutionLimit, site, subtitleLang = 'auto_smart', embedSubtitles = true) {
+  downloadQueue.push({ url, title, channel, format, resolutionLimit, site, subtitleLang, embedSubtitles });
   updateQueueVisibility();
   processDownloadQueue();
 }
@@ -404,7 +562,7 @@ function enqueueDownload(url, title, channel, format, resolutionLimit, site) {
 async function processDownloadQueue() {
   if (activeDownloadCount >= MAX_CONCURRENT_DOWNLOADS || downloadQueue.length === 0) return;
   
-  const { url, title, channel, format, resolutionLimit, site } = downloadQueue.shift();
+  const { url, title, channel, format, resolutionLimit, site, subtitleLang, embedSubtitles } = downloadQueue.shift();
   activeDownloadCount++;
   
   const id = Date.now().toString() + Math.floor(Math.random() * 1000);
@@ -417,7 +575,7 @@ async function processDownloadQueue() {
     outputDir = await ipcRenderer.invoke('path-join', currentDownloadDir, siteFolder, channelFolder);
   }
   
-  activeTasksMap[id] = { title, channel, outputDir, url, format, resolutionLimit, site };
+  activeTasksMap[id] = { title, channel, outputDir, url, format, resolutionLimit, site, subtitleLang, embedSubtitles };
   createQueueItemUI(id, title, channel, outputDir);
   
   ipcRenderer.send('download-video', {
@@ -425,7 +583,9 @@ async function processDownloadQueue() {
     biliCookies: localStorage.getItem('biliCookies') || '',
     youtubeCookies: localStorage.getItem('youtubeCookies') || '',
     customUa: localStorage.getItem('customUa') || '',
-    downloadSubtitles: localStorage.getItem('downloadSubtitles') !== 'false'
+    downloadSubtitles: subtitleLang !== 'none',
+    subtitleLang: subtitleLang || 'auto_smart',
+    embedSubtitles: embedSubtitles !== false
   });
 }
 
@@ -566,7 +726,9 @@ function createQueueItemUI(id, title, channel, outputDir, isHistory = false, his
       histItem.channel,
       histItem.format || 'best',
       histItem.resolutionLimit || 'best',
-      histItem.site
+      histItem.site,
+      histItem.subtitleLang || 'auto_smart',
+      histItem.embedSubtitles !== false
     );
     
     // Remove the old task from DOM and history
@@ -617,6 +779,8 @@ ipcRenderer.on('download-progress', (event, { id, status, progress, error }) => 
         format: taskData.format,
         resolutionLimit: taskData.resolutionLimit,
         site: taskData.site,
+        subtitleLang: taskData.subtitleLang || 'auto_smart',
+        embedSubtitles: taskData.embedSubtitles !== false,
         status: finalStatus,
         error: error || ''
       });
@@ -1004,6 +1168,8 @@ subDownloadBtn.addEventListener('click', () => {
   if (!sub) return;
 
   const resLimit = subDownloadRes.value;
+  const subLang = subSubLang ? subSubLang.value : (subDlSub && subDlSub.checked ? 'auto_smart' : 'none');
+  const embedSub = subDlSub ? subDlSub.checked : false;
 
   checkedBoxes.forEach(cb => {
     const idx = parseInt(cb.dataset.idx, 10);
@@ -1015,7 +1181,9 @@ subDownloadBtn.addEventListener('click', () => {
         sub.title,
         'best',
         resLimit,
-        sub.site
+        sub.site,
+        subLang,
+        embedSub
       );
     }
   });
@@ -1113,6 +1281,8 @@ subUpdateCloseBtn.addEventListener('click', () => {
 
 subUpdateDownloadBtn.addEventListener('click', () => {
   const resLimit = subUpdateRes.value;
+  const subLang = localStorage.getItem('downloadSubtitles') !== 'false' ? (localStorage.getItem('defaultSubLang') || 'auto_smart') : 'none';
+  const embedSub = localStorage.getItem('downloadSubtitles') !== 'false';
   const checkedBoxes = document.querySelectorAll('.sub-update-checkbox:checked');
 
   checkedBoxes.forEach(cb => {
@@ -1125,7 +1295,9 @@ subUpdateDownloadBtn.addEventListener('click', () => {
         video.channel,
         'best',
         resLimit,
-        video.site
+        video.site,
+        subLang,
+        embedSub
       );
     }
   });
